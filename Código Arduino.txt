@@ -1,0 +1,145 @@
+#include <Arduino.h>
+#include <math.h>
+#include<LiquidCrystal.h>
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+#define cbi(sfr, bit) (_SFR_BYTE(sfr) &= ~_BV(bit))
+#define sbi(sfr, bit) (_SFR_BYTE(sfr) |= _BV(bit))
+// configurar el pin utilizado para la medicion de voltaje del divisor resistivo del NTC
+#define CONFIG_THERMISTOR_ADC_PIN A0
+//#define CONFIG_THERMISTOR_VCC_PIN A1
+// configurar el valor de la resistencia que va en serie con el termistor NTC en ohms
+#define CONFIG_THERMISTOR_RESISTOR 100000
+#define rAux 98300
+//uint16_t adcval;
+uint16_t adcval[100];
+uint16_t suma=0;
+uint16_t promedio_adc=0;
+float vm = 0.0;
+float rntc = 0.0;
+float vcc = 4.7;
+float Beta = 0.0;
+float A = 0.0;
+float temperatura;
+
+
+/**
+ * @brief Obtiene la resistencia del termistor resolviendo el divisor resistivo.
+ * 
+ * @param adcval Valor medido por el convertidor analógico a digital.
+ * @return int32_t Resistencia electrica del termistor.
+ */
+int32_t thermistor_get_resistance()
+{
+  suma=0;
+  for ( byte i = 0; i < 100; i++)
+  {
+    adcval[i]=analogRead(CONFIG_THERMISTOR_ADC_PIN);
+    suma += adcval[i]; //Sumamos cada uno de los elementos del array
+  }
+  promedio_adc=suma/100; // dividimos por 100 y tenemos la media
+  
+  vm=(vcc / 1024)*promedio_adc;                   //Calcular tensión en la entrada               
+  rntc = (vm*(rAux))/(vcc-vm);                    //Calcular la resistencia de la NTC
+  return rntc;
+}
+ 
+/**
+ * @brief Obtiene la temperatura en grados centigrados a partir de la resistencia
+ * actual del componente.
+ * 
+ * @param resistance Resistencia actual del termistor.
+ * @return float Temperatura en grados centigrados.
+ */
+float thermistor_get_temperature(int32_t resistance)
+{
+  if ( resistance >= 280 && resistance <= 350 ){
+    Beta = 971.37;
+    A=5.92;
+  }
+
+  if ( resistance > 350 && resistance <= 670 ){
+    Beta = 816.22;
+    A=11.78;
+  }
+
+   if ( resistance > 670 && resistance <= 1280 ){
+    Beta = 680.88;
+    A=11.78;
+  }
+
+    if ( resistance > 1280 && resistance <= 2168 ){
+    Beta = 560.43;
+    A=49.147;
+  }
+
+    if ( resistance > 2168 && resistance <= 3712 ){
+    Beta =476.06 ;
+    A=87.43;
+  }
+
+    if ( resistance > 3712 && resistance <= 8160 ){
+    Beta = 328.9;
+    A=294.3;
+  }
+
+    if ( resistance > 8160 && resistance <= 15460 ){
+    Beta = 222.69;
+    A=922.53;
+  }
+
+    if ( resistance > 15460 && resistance <= 22780 ){
+    Beta = 153.26;
+    A=2233.62;
+  }
+
+    if ( resistance > 22780 && resistance < 40000 ){
+    Beta =105.865;
+    A=4784.95;
+  }
+
+  if ( resistance > 40000) {
+    Beta = 105.865;
+    A=4784.95;
+  }
+
+  temperatura=(Beta)/(log(resistance/A));
+  return temperatura;
+
+}
+
+void setup() {
+
+  sbi(ADCSRA, ADPS2);
+  cbi(ADCSRA, ADPS1);
+  cbi(ADCSRA, ADPS0);
+  lcd.begin(16, 2);
+
+  }
+
+void loop() {
+
+  // variable para almacenar la temperatura y resistencia
+  float temperatura;
+  float resistencia;
+  uint32_t valor_adc;
+  // calcular la resistencia electrica del termistor usando la lectura del ADC
+  resistencia = thermistor_get_resistance();
+  // luego calcular la temperatura segun dicha resistencia
+  temperatura = thermistor_get_temperature(resistencia);
+ 
+  lcd.setCursor(0, 0);
+  lcd.print("Res:");
+  lcd.setCursor(4, 0);
+  lcd.print(resistencia/1000);
+  lcd.setCursor(11, 0);
+  lcd.print("Kohm");
+  lcd.setCursor(0, 1);
+  lcd.print("Temp:");
+  lcd.setCursor(5, 1);
+  lcd.print(temperatura);
+  lcd.setCursor(11, 1);
+  lcd.print("C");
+  // esperar 5 segundos entre las lecturas
+   delay(1000);
+
+}
